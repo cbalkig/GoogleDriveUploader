@@ -96,15 +96,15 @@ def upload_file(file):
     file_name = os.path.basename(file)
     id, path = get_dest(parent_id, file_name)
     if id is not None:
-        return file, "Already uploaded: " + path
+        return file + ": Already uploaded to " + path
 
     results = execute_command("gdrive upload " + file + " --parent " + parent_id)
     for result in results:
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
-            return file, "Uploaded"
+            return file + ": Uploaded"
 
-    return file, results
+    return file + ": " + results
 
 
 def create_dir(parent_id, folder_name):
@@ -172,5 +172,5 @@ if __name__ == "__main__":
 
     with Pool(thread_count) as p:
         results = p.map(upload_file, src_files)
-        for file, status in results:
-            print(file, ":", status)
+        for result in results:
+            print(result)

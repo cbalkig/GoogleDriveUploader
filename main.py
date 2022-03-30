@@ -164,7 +164,7 @@ if __name__ == "__main__":
                     i, _ = get_dest(parent_id, folder_name)
                     id = i
             else:
-                print("Directory already created:", folder_name, path)
+                print("Directory already created:", folder_name, ":", path)
             mapper[src] = id
     else:
         print("Source is a file: %s" % src)

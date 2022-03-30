@@ -38,6 +38,18 @@ def execute_command(command):
     return result
 
 
+def get_path(id):
+    results = execute_command("gdrive info " + id)
+    path = None
+    for result in results:
+        search = re.search('Path: (.+)', result, re.IGNORECASE)
+        if search:
+            path = search.group(1)
+            break
+
+    return path
+
+
 def get_parent_id(id):
     results = execute_command("gdrive info " + id)
     pid = None
@@ -70,7 +82,7 @@ def get_dest(parent_id, dest):
         search = re.search('([A-Za-z0-9-_]+)[ ]+(.+)[ ]+(\s+)[ ]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',
                            result, re.IGNORECASE)
         if search:
-            ids.append((search.group(1), None))
+            ids.append((search.group(1), get_path(search.group(1))))
 
     if len(ids) == 0:
         return (None, None)
@@ -91,15 +103,17 @@ def upload_file(file):
     file_name = os.path.basename(file)
     id, path = get_dest(parent_id, file_name)
     if id is not None:
-        return file + ": Already uploaded to " + path
+        print(file + ": Already uploaded to " + path)
+        return
 
     results = execute_command("gdrive upload '" + file + "' --parent " + parent_id)
     for result in results:
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
-            return file + ": Uploaded"
+            print(file + ": Uploaded")
+            return
 
-    return file + ": " + results
+    print(file + ": " + results)
 
 
 def create_dir(parent_id, folder_name):
@@ -166,6 +180,4 @@ if __name__ == "__main__":
         src_files.append(src)
 
     with Pool(thread_count) as p:
-        results = p.map(upload_file, src_files)
-        for result in results:
-            print(result)
+        p.map(upload_file, src_files)

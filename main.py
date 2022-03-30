@@ -165,7 +165,7 @@ if __name__ == "__main__":
                     id = i
             else:
                 print("Directory already created:", folder_name, ":", path)
-            mapper[src] = id
+            mapper[src_folder] = id
     else:
         print("Source is a file: %s" % src)
         src_files.append(src)

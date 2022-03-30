@@ -30,8 +30,8 @@ def execute_command(command):
     result = []
     if process.stderr is not None:
         for line in process.stderr:
-            sys.stderr.write(line)
-            sys.stderr.flush()
+            #sys.stderr.write(line)
+            #sys.stderr.flush()
             result.append(line.strip())
     for line in process.stdout:
         result.append(line.strip())
@@ -57,7 +57,11 @@ def get_parent_id(id):
 
 
 def get_dest(parent_id, dest):
-    command = "gdrive list --query \"trashed = false and name = '" + dest + "'\" -m 1000"
+    if parent_id is None:
+        command = "gdrive list --query \"trashed = false and name = '" + dest + "'\" -m 1000"
+    else:
+        command = "gdrive list --query \"trashed = false and name = '" + dest + "' and '" + str(parent_id) \
+                  + "' in parents\" -m 1000"
 
     results = execute_command(command)
     ids = []
@@ -68,22 +72,13 @@ def get_dest(parent_id, dest):
         if search:
             ids.append((search.group(1), None))
 
-    filtered_list = []
-    if parent_id is not None:
-        for id, _ in ids:
-            pid, path = get_parent_id(id)
-            if pid is not None and pid == parent_id:
-                filtered_list.append((id, path))
-    else:
-        filtered_list = ids
-
-    if len(filtered_list) == 0:
+    if len(ids) == 0:
         return (None, None)
-    elif len(filtered_list) > 1:
+    elif len(ids) > 1:
         print("Multiple ID found for %s" % dest)
         exit(-1)
 
-    return filtered_list[0]
+    return ids[0]
 
 
 def upload_file(file):
@@ -98,7 +93,7 @@ def upload_file(file):
     if id is not None:
         return file + ": Already uploaded to " + path
 
-    results = execute_command("gdrive upload " + file + " --parent " + parent_id)
+    results = execute_command("gdrive upload '" + file + "' --parent " + parent_id)
     for result in results:
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:

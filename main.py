@@ -40,36 +40,45 @@ def execute_command(command):
 
 def get_parent_id(id):
     results = execute_command("gdrive info " + id)
+    pid = None
+    path = None
     for result in results:
         search = re.search('Parents: ([A-Za-z0-9-_]+)', result, re.IGNORECASE)
         if search:
-            return search.group(1)
+            pid = search.group(1)
+            continue
 
-    return None
+        search = re.search('Path: (.+)', result, re.IGNORECASE)
+        if search:
+            path = search.group(1)
+            continue
+
+    return pid, path
 
 
 def get_dest(parent_id, dest):
-    command = "gdrive list --query \"name = '" + dest + "'\" -m 1000"
+    command = "gdrive list --query \"trashed = false and name = '" + dest + "'\" -m 1000"
 
     results = execute_command(command)
     ids = []
 
     for result in results:
-        search = re.search('([A-Za-z0-9-_]+)[ ]+(\w+)[ ]+dir[ ]+[0-9- :]+', result, re.IGNORECASE)
+        search = re.search('([A-Za-z0-9-_]+)[ ]+(.+)[ ]+(\s+)[ ]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',
+                           result, re.IGNORECASE)
         if search:
-            ids.append(search.group(1))
+            ids.append((search.group(1), None))
 
     filtered_list = []
     if parent_id is not None:
-        for id in ids:
-            pid = get_parent_id(id)
+        for id, _ in ids:
+            pid, path = get_parent_id(id)
             if pid is not None and pid == parent_id:
-                filtered_list.append(id)
+                filtered_list.append((id, path))
     else:
         filtered_list = ids
 
     if len(filtered_list) == 0:
-        return None
+        return (None, None)
     elif len(filtered_list) > 1:
         print("Multiple ID found for %s" % dest)
         exit(-1)
@@ -85,9 +94,9 @@ def upload_file(file):
 
     parent_id = mapper[parent_folder]
     file_name = os.path.basename(file)
-    id = get_dest(parent_id, file_name)
+    id, path = get_dest(parent_id, file_name)
     if id is not None:
-        return file, "Already uploaded"
+        return file, "Already uploaded: " + path
 
     results = execute_command("gdrive upload " + file + " --parent " + parent_id)
     for result in results:
@@ -118,9 +127,12 @@ if __name__ == "__main__":
 
     _ = execute_command("gdrive about")
 
-    parent_id = get_dest(None, dest)
+    parent_id, path = get_dest(None, dest)
     if parent_id is None:
         print("Destination path not found: %s" % dest)
+        status = create_dir(None, dest)
+        if status:
+            print("Directory created: %s" % dest)
 
     if not os.path.exists(src):
         print("Source path not found: %s" % src)
@@ -144,13 +156,15 @@ if __name__ == "__main__":
         for src_folder in src_folders:
             folder_name = os.path.basename(src_folder)
             parent_folder = os.path.abspath(os.path.join(src_folder, os.pardir))
-            id = get_dest(mapper[parent_folder], folder_name)
+            id, path = get_dest(mapper[parent_folder], folder_name)
             if id is None:
                 status = create_dir(parent_id, folder_name)
                 if status:
                     print("Directory created: %s" % folder_name)
+                    i, _ = get_dest(parent_id, folder_name)
+                    id = i
             else:
-                print("Directory already created: %s" % folder_name)
+                print("Directory already created:", folder_name, path)
             mapper[src] = id
     else:
         print("Source is a file: %s" % src)

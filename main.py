@@ -158,10 +158,10 @@ if __name__ == "__main__":
             parent_folder = os.path.abspath(os.path.join(src_folder, os.pardir))
             id, path = get_dest(mapper[parent_folder], folder_name)
             if id is None:
-                status = create_dir(parent_id, folder_name)
+                status = create_dir(mapper[parent_folder], folder_name)
                 if status:
                     print("Directory created: %s" % folder_name)
-                    i, _ = get_dest(parent_id, folder_name)
+                    i, _ = get_dest(mapper[parent_folder], folder_name)
                     id = i
             else:
                 print("Directory already created:", folder_name, ":", path)

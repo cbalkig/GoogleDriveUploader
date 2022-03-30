@@ -30,8 +30,8 @@ def execute_command(command):
     result = []
     if process.stderr is not None:
         for line in process.stderr:
-            #sys.stderr.write(line)
-            #sys.stderr.flush()
+            sys.stderr.write(line)
+            sys.stderr.flush()
             result.append(line.strip())
     for line in process.stdout:
         result.append(line.strip())

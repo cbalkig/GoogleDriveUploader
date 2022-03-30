@@ -15,6 +15,11 @@ parser.add_argument("--dest",
                     dest="dest",
                     help="The destination folder like Folder 1 in the destination Google Drive",
                     type=str)
+parser.add_argument("--thread_count",
+                    dest="thread_count",
+                    help="The thread count",
+                    type=int,
+                    default=50)
 args = parser.parse_args()
 
 mapper = {}
@@ -23,9 +28,12 @@ mapper = {}
 def execute_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     result = []
-    for line in process.stderr:
-        sys.stderr.write(line)
-        sys.stderr.flush()
+    if process.stderr is not None:
+        for line in process.stderr:
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            result.append(line.strip())
+    for line in process.stdout:
         result.append(line.strip())
     return result
 
@@ -61,8 +69,7 @@ def get_dest(parent_id, dest):
         filtered_list = ids
 
     if len(filtered_list) == 0:
-        print("ID not found for %s" % dest)
-        exit(-1)
+        return None
     elif len(filtered_list) > 1:
         print("Multiple ID found for %s" % dest)
         exit(-1)
@@ -71,7 +78,7 @@ def get_dest(parent_id, dest):
 
 
 def upload_file(file):
-    parent_folder = os.path.abspath(os.path.join(src, os.pardir))
+    parent_folder = os.path.abspath(os.path.join(file, os.pardir))
     if parent_folder not in mapper:
         print("Parent Id not found")
         exit(-1)
@@ -80,21 +87,31 @@ def upload_file(file):
     file_name = os.path.basename(file)
     id = get_dest(parent_id, file_name)
     if id is not None:
-        print("File already uploaded: %s" % file_name)
-        return
+        return file, "Already uploaded"
 
     results = execute_command("gdrive upload " + file + " --parent " + parent_id)
     for result in results:
-        search = re.search('Parents: ([A-Za-z0-9-_]+)', result, re.IGNORECASE)
+        search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
-            return search.group(1)
+            return file, "Uploaded"
 
-    return
+    return file, results
+
+
+def create_dir(parent_id, folder_name):
+    results = execute_command("gdrive mkdir " + folder_name + " --parent " + parent_id)
+    for result in results:
+        search = re.search('Directory ([A-Za-z0-9-_]+) created', result, re.IGNORECASE)
+        if search:
+            return True
+
+    return False
 
 
 if __name__ == "__main__":
     src = args.src.strip()
     dest = args.dest.strip()
+    thread_count = args.thread_count
 
     if src.endswith(os.sep):
         src = src[:-1]
@@ -114,9 +131,9 @@ if __name__ == "__main__":
     mapper[os.path.abspath(os.path.join(src, os.pardir))] = parent_id
 
     if os.path.isdir(src):
-        print("Source is a directory")
+        print("Source is a directory: %s" % src)
 
-        src_folders = []
+        src_folders = [src]
 
         for root, subdirs, files in os.walk(src):
             for subdir in subdirs:
@@ -125,17 +142,21 @@ if __name__ == "__main__":
                 src_files.append(os.path.join(root, file))
 
         for src_folder in src_folders:
-            folder_name = os.path.basename(src)
-            parent_folder = os.path.abspath(os.path.join(src, os.pardir))
+            folder_name = os.path.basename(src_folder)
+            parent_folder = os.path.abspath(os.path.join(src_folder, os.pardir))
             id = get_dest(mapper[parent_folder], folder_name)
             if id is None:
-                create_dir(parent_id, folder_name)
-
-            print("Directory already created: %s" % folder_name)
+                status = create_dir(parent_id, folder_name)
+                if status:
+                    print("Directory created: %s" % folder_name)
+            else:
+                print("Directory already created: %s" % folder_name)
             mapper[src] = id
     else:
-        print("Source is a file")
+        print("Source is a file: %s" % src)
         src_files.append(src)
 
-    with Pool(50) as p:
-        _ = p.map(upload_file, src_files)
+    with Pool(thread_count) as p:
+        results = p.map(upload_file, src_files)
+        for file, status in results:
+            print(file, ":", status)

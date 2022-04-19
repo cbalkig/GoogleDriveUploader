@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 mapper = {}
 
-GDRIVE_PATH = "drive"
+GDRIVE_PATH = "gdrive"
 #GDRIVE_PATH = "C:\MyTools\GDrive\gdrive.exe"
 LOG_FILE_PATH = "log.txt"
 logs = []

@@ -3,10 +3,7 @@ import os.path
 import re
 import sys
 import subprocess
-import time
-from multiprocessing import Pool
-import schedule
-import threading
+from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser("Google Drive Uploader")
@@ -18,11 +15,6 @@ parser.add_argument("--dest",
                     dest="dest",
                     help="The destination folder like Folder 1 in the destination Google Drive",
                     type=str)
-parser.add_argument("--thread_count",
-                    dest="thread_count",
-                    help="The thread count",
-                    type=int,
-                    default=50)
 args = parser.parse_args()
 
 mapper = {}
@@ -37,7 +29,9 @@ def read_logs():
     processed_files = []
     if os.path.exists(LOG_FILE_PATH):
         f = open(LOG_FILE_PATH, "r")
-        processed_files = f.readlines()
+        result = f.read()
+        processed_files = result.split("\n")
+        f.close()
     return processed_files
 
 
@@ -104,12 +98,12 @@ def get_dest(parent_id, dest):
         return (None, None)
     elif len(ids) > 1:
         print("Multiple ID found for %s" % dest)
-        exit(-1)
 
     return ids[0]
 
 
 def upload_file(file):
+    global logs
     if str(file) in logs:
         return
 
@@ -122,19 +116,19 @@ def upload_file(file):
     file_name = os.path.basename(file)
     id, path = get_dest(parent_id, file_name)
     if id is not None:
-        print(file + ": Already uploaded to " + path)
-        logs.append(file)
+        #print(file + ": Already uploaded to " + path)
+        append_to_log(file)
         return
 
     results = execute_command(GDRIVE_PATH + " upload '" + file + "' --parent " + parent_id)
     for result in results:
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
-            print(file + ": Uploaded")
-            logs.append(file)
+            #print(file + ": Uploaded")
+            append_to_log(file)
             return
 
-    logs.append(file)
+    append_to_log(file)
     print(file + ": " + results)
 
 
@@ -148,25 +142,19 @@ def create_dir(parent_id, folder_name):
     return False
 
 
-def write_to_log():
-    f = open(LOG_FILE_PATH, "w")
-    f.writelines(logs)
+def append_to_log(file):
+    global logs
+    logs.append(file)
+    if len(logs) % 100 == 0:
+        f = open(LOG_FILE_PATH, "w")
+        for log in logs:
+            f.write(log + "\n")
+        f.close()
 
 
-def run_pending():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-
-schedule.every().minute.do(write_to_log)
 if __name__ == "__main__":
-    th = threading.Thread(target=run_pending)
-    th.start()
-
     src = args.src.strip()
     dest = args.dest.strip()
-    thread_count = args.thread_count
 
     if src.endswith(os.sep):
         src = src[:-1]
@@ -220,7 +208,6 @@ if __name__ == "__main__":
         print("Source is a file: %s" % src)
         src_files.append(src)
 
-    with Pool(thread_count) as p:
-        p.map(upload_file, src_files)
-
-    th.join()
+    for i in tqdm(range(len(src_files))):
+        src_file = src_files[i]
+        upload_file(src_file)

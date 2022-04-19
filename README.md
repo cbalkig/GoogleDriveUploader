@@ -11,5 +11,5 @@ gdrive about
 
 How to execute:
 ```
-python main.py --src "/Users/balki/Downloads" --dest VIST --thread_count 50
+python main.py --src "/Users/balki/Downloads" --dest VIST
 ```

@@ -123,6 +123,7 @@ def upload_file(file):
     id, path = get_dest(parent_id, file_name)
     if id is not None:
         print(file + ": Already uploaded to " + path)
+        logs.append(file)
         return
 
     results = execute_command(GDRIVE_PATH + " upload '" + file + "' --parent " + parent_id)
@@ -130,6 +131,7 @@ def upload_file(file):
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
             print(file + ": Uploaded")
+            logs.append(file)
             return
 
     logs.append(file)

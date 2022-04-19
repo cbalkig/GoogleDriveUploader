@@ -4,7 +4,7 @@ import re
 import sys
 import subprocess
 from multiprocessing import Pool
-
+import schedule
 
 parser = argparse.ArgumentParser("Google Drive Uploader")
 parser.add_argument("--src",
@@ -24,6 +24,18 @@ args = parser.parse_args()
 
 mapper = {}
 
+GDRIVE_PATH = "C:\MyTools\GDrive\gdrive.exe"
+LOG_FILE_PATH = "log.txt"
+logs = []
+
+
+def read_logs():
+    processed_files = []
+    if os.path.exists(LOG_FILE_PATH):
+        f = open(LOG_FILE_PATH, "r")
+        processed_files = f.readlines()
+    return processed_files
+
 
 def execute_command(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
@@ -39,7 +51,7 @@ def execute_command(command):
 
 
 def get_path(id):
-    results = execute_command("gdrive info " + id)
+    results = execute_command(GDRIVE_PATH + " info " + id)
     path = None
     for result in results:
         search = re.search('Path: (.+)', result, re.IGNORECASE)
@@ -51,7 +63,7 @@ def get_path(id):
 
 
 def get_parent_id(id):
-    results = execute_command("gdrive info " + id)
+    results = execute_command(GDRIVE_PATH + " info " + id)
     pid = None
     path = None
     for result in results:
@@ -70,9 +82,9 @@ def get_parent_id(id):
 
 def get_dest(parent_id, dest):
     if parent_id is None:
-        command = "gdrive list --query \"trashed = false and name = '" + dest + "'\" -m 1000"
+        command = GDRIVE_PATH + " list --query \"trashed = false and name = '" + dest + "'\" -m 1000"
     else:
-        command = "gdrive list --query \"trashed = false and name = '" + dest + "' and '" + str(parent_id) \
+        command = GDRIVE_PATH + " list --query \"trashed = false and name = '" + dest + "' and '" + str(parent_id) \
                   + "' in parents\" -m 1000"
 
     results = execute_command(command)
@@ -94,6 +106,9 @@ def get_dest(parent_id, dest):
 
 
 def upload_file(file):
+    if str(file) in logs:
+        return
+
     parent_folder = os.path.abspath(os.path.join(file, os.pardir))
     if parent_folder not in mapper:
         print("Parent Id not found")
@@ -106,18 +121,19 @@ def upload_file(file):
         print(file + ": Already uploaded to " + path)
         return
 
-    results = execute_command("gdrive upload '" + file + "' --parent " + parent_id)
+    results = execute_command(GDRIVE_PATH + " upload '" + file + "' --parent " + parent_id)
     for result in results:
         search = re.search('Uploaded ([A-Za-z0-9-_]+) .*', result, re.IGNORECASE)
         if search:
             print(file + ": Uploaded")
             return
 
+    logs.append(file)
     print(file + ": " + results)
 
 
 def create_dir(parent_id, folder_name):
-    results = execute_command("gdrive mkdir " + folder_name + " --parent " + parent_id)
+    results = execute_command(GDRIVE_PATH + " mkdir " + folder_name + " --parent " + parent_id)
     for result in results:
         search = re.search('Directory ([A-Za-z0-9-_]+) created', result, re.IGNORECASE)
         if search:
@@ -126,7 +142,14 @@ def create_dir(parent_id, folder_name):
     return False
 
 
+def write_to_log():
+    f = open(LOG_FILE_PATH, "w")
+    f.writelines(logs)
+
+
 if __name__ == "__main__":
+    schedule.every(1).minutes.do(write_to_log)
+
     src = args.src.strip()
     dest = args.dest.strip()
     thread_count = args.thread_count
@@ -134,7 +157,10 @@ if __name__ == "__main__":
     if src.endswith(os.sep):
         src = src[:-1]
 
-    _ = execute_command("gdrive about")
+    about_result = execute_command(GDRIVE_PATH + " about")
+    print(about_result)
+
+    logs = read_logs()
 
     parent_id, path = get_dest(None, dest)
     if parent_id is None:
@@ -160,7 +186,8 @@ if __name__ == "__main__":
             for subdir in subdirs:
                 src_folders.append(os.path.join(root, subdir))
             for file in files:
-                src_files.append(os.path.join(root, file))
+                file_path = os.path.join(root, file)
+                src_files.append(file_path)
 
         for src_folder in src_folders:
             folder_name = os.path.basename(src_folder)

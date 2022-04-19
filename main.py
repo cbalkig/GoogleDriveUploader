@@ -3,8 +3,11 @@ import os.path
 import re
 import sys
 import subprocess
+import time
 from multiprocessing import Pool
 import schedule
+import threading
+
 
 parser = argparse.ArgumentParser("Google Drive Uploader")
 parser.add_argument("--src",
@@ -148,8 +151,16 @@ def write_to_log():
     f.writelines(logs)
 
 
+def run_pending():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+schedule.every().minute.do(write_to_log)
 if __name__ == "__main__":
-    schedule.every(1).minutes.do(write_to_log)
+    th = threading.Thread(target=run_pending)
+    th.start()
 
     src = args.src.strip()
     dest = args.dest.strip()
@@ -183,8 +194,8 @@ if __name__ == "__main__":
 
         src_folders = [src]
 
-        for root, subdirs, files in os.walk(src):
-            for subdir in subdirs:
+        for root, sub_dirs, files in os.walk(src):
+            for subdir in sub_dirs:
                 src_folders.append(os.path.join(root, subdir))
             for file in files:
                 file_path = os.path.join(root, file)
@@ -209,3 +220,5 @@ if __name__ == "__main__":
 
     with Pool(thread_count) as p:
         p.map(upload_file, src_files)
+
+    th.join()
